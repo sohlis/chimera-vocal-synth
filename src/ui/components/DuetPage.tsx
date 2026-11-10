@@ -65,6 +65,10 @@ export function DuetPage(props: { id: string }) {
 
   useEffect(() => {
     const t = new Transport();
+    // frame-exact offline capture (forks' video work): `?capture` hands the transport to the
+    // page so a headless driver can seek a paused show to exact times and screenshot each pose
+    if (new URLSearchParams(window.location.search).has("capture"))
+      (window as unknown as { __transport?: Transport }).__transport = t;
     setTransport(t);
     return () => t.dispose();
   }, []);

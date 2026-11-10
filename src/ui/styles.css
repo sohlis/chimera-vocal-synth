@@ -2865,3 +2865,12 @@ input[type="range"]::-moz-range-thumb {
     padding: 7px 8px 0;
   }
 }
+
+/* replay page (fork addition): the face screen fills its row */
+.replay-main {
+  display: flex;
+  min-height: 0;
+}
+.replay-main > .screen {
+  flex: 1 1 auto;
+}

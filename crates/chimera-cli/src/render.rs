@@ -187,13 +187,87 @@ pub fn say(g: &EnglishG2P, text: &str, body_name: &str) -> Result<Spoken, String
     Ok(Spoken { out, plan, shown: shown.join(" | ") })
 }
 
-/// English text through G2P and the phrase planner. `render text <out> ["Text."] [body]`
+/// `say`, but also recording the voice's telemetry (`render text … --tele voice.tele`), so a
+/// spoken line can be replayed on a duet-page head exactly as it was rendered. The sound is
+/// the same: `render_tracked` runs the voice sample by sample either way.
+pub fn say_tele(g: &EnglishG2P, text: &str, body_name: &str) -> Result<(Spoken, TeleRecorder), String> {
+    let b = body(body_name)?;
+    let f0 = text_f0(body_name);
+    let phrases = g.to_phrases(text);
+    let shown: Vec<String> = phrases
+        .iter()
+        .map(|p| {
+            let s: String = p
+                .segments
+                .iter()
+                .map(|s| format!("{}{}", if s.stress == Some(1) { "ˈ" } else { "" }, s.ipa))
+                .collect();
+            s + if p.intonation == Intonation::Question {
+                "?"
+            } else {
+                ""
+            }
+        })
+        .collect();
+    let mut voice = HumanVoice::new(FS, b, 2);
+    voice.set_source(&SourcePatch::f0(f0));
+    let inputs: Vec<PhraseInput> = phrases
+        .iter()
+        .map(|p| PhraseInput {
+            segments: p.segments.clone(),
+            intonation: Some(p.intonation),
+            pause: Some(p.pause),
+        })
+        .collect();
+    let plan = plan_phrases(
+        &inputs,
+        &PlanOptions {
+            body: body_name.into(),
+            t0: 0.05,
+            f0: Some(f0),
+            ..Default::default()
+        },
+    );
+    voice.schedule(&plan.gestures);
+    let total = js_round(FS * (plan.end + 0.3)) as usize;
+    let mut out = vec![0f32; total];
+    let (_, rec) = render_tracked(&mut voice, &mut out, false, true)?;
+    Ok((Spoken { out, plan, shown: shown.join(" | ") }, rec.expect("telemetry recorder")))
+}
+
+/// English text through G2P and the phrase planner. `render text <out> ["Text."] [body] [--tele voice.tele]`
 pub fn text(ctx: &Ctx, a: &[String]) -> Result<(), String> {
+    let mut tele_out: Option<String> = None;
+    let mut rest = Vec::new();
+    let mut it = a.iter();
+    while let Some(x) = it.next() {
+        if x == "--tele" {
+            tele_out = Some(it.next().ok_or("--tele needs a file")?.clone());
+        } else {
+            rest.push(x.clone());
+        }
+    }
+    let a = &rest[..];
     let name = arg(a, 0, "out/text");
     let text = arg(a, 1, "Hello world.");
     let body_name = arg(a, 2, "male");
     let g = g2p()?;
     let t = Instant::now();
+    if let Some(path) = &tele_out {
+        let (s, rec) = say_tele(&g, text, body_name)?;
+        let ms = ms_since(t);
+        println!("{}", s.shown);
+        let file = wav_name(name);
+        ctx.write_wav(&file, &s.out)?;
+        std::fs::write(path, rec.bytes(body_mix(body_name)?)).map_err(|e| format!("{path}: {e}"))?;
+        println!(
+            "wrote {file}  {} s, rendered in {} ms; {path}: {} telemetry frames every {TELE_HOP} samples",
+            fixed(s.out.len() as f64 / FS, 2),
+            fixed(ms, 0),
+            rec.frames
+        );
+        return Ok(());
+    }
     let s = say(&g, text, body_name)?;
     let ms = ms_since(t);
     println!("{}", s.shown);

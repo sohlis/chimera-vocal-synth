@@ -26,10 +26,18 @@ import { bodyLabel, presetOf, PRESETS } from "./body.ts";
 const AnatomyView3D = lazy(() => import("./components/AnatomyView3D.tsx").then((m) => ({ default: m.AnatomyView3D })));
 // the duet page (`?show=<id>`): two 3D heads replaying a pre-rendered song
 const DuetPage = lazy(() => import("./components/DuetPage.tsx").then((m) => ({ default: m.DuetPage })));
+// the replay page (`?replay=<id>`, fork addition): one show voice on the 2D cutaway face
+const ReplayPage = lazy(() => import("./components/ReplayPage.tsx").then((m) => ({ default: m.ReplayPage })));
 
 /** the show to play, from `?show=<id>` (a plain folder name under public/shows) */
 function showId(): string | null {
   const id = new URLSearchParams(window.location.search).get("show");
+  return id && /^[\w-]+$/.test(id) ? id : null;
+}
+
+/** the show to replay on the 2D face, from `?replay=<id>` */
+function replayId(): string | null {
+  const id = new URLSearchParams(window.location.search).get("replay");
   return id && /^[\w-]+$/.test(id) ? id : null;
 }
 
@@ -215,6 +223,13 @@ function PlayRight() {
 }
 
 export function App() {
+  const replay = replayId();
+  if (replay)
+    return (
+      <Suspense fallback={null}>
+        <ReplayPage id={replay} />
+      </Suspense>
+    );
   const show = showId();
   if (show)
     return (

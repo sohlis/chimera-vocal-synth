@@ -1,19 +1,26 @@
-# Fan videos (fork extras)
+# Fan videos (fork additions)
 
-Two wireframe music videos rendered with this fork's `chimera-cli`, in the
-app's vector-display style (glow lines, Hershey vector font):
+Two videos rendered with CHIMERA itself — Homer singing 4 Non Blondes' "What's Up" and
+Trump's most famous quotes — drawn by the app's own 2D cutaway face replaying the engine's
+recorded telemetry, frame by frame. (The song's melody/lyrics file is deliberately not
+committed: upstream's rule is nothing copyrighted in git.)
 
-- **Homer — "What's Up"**: the melody + lyrics are fed to `render notes`
-  (male body) with `--artic`; the engine's real jaw/lip/tongue tracks at
-  100 Hz drive Homer's mouth and the live vocal-tract inset. A small
-  synthesized backing (pad/bass/kick in A major) sits under the voice.
-- **Trump — Greatest Hits**: eight famous quotes through `render text`
-  (male body), one WAV each, sequenced with word-by-word captions; the
-  mouth is driven by the audio's RMS envelope.
+How they were made:
 
-Build: `python3 build_videos.py homer` / `python3 build_videos.py trump`
-(needs the release CLI built, ffmpeg, Python + numpy + Pillow).
+1. `chimera render notes whats-up.json homer male --tele homer.tele` — the song, with
+   telemetry. This fork's CLI also takes `--tele` on `render text`, so the quotes were
+   rendered the same way and concatenated (audio + telemetry, hop-aligned gaps).
+2. Each performance is a *show* folder (`public/shows/<id>/`, gitignored as upstream
+   intends): `show.json`, the mix, one `.tele` per voice, and the melody file for the
+   words at the mouth.
+3. The fork adds a replay page, `?replay=<id>` (src/ui/components/ReplayPage.tsx): it
+   feeds the telemetry into the engine's `latest` slot, where the worklet's messages
+   land, and the stock AnatomyView draws it — cutaway, pressure, particles, readouts,
+   mouth words — with `window.__replay.seek(t)` for frame-exact capture.
+   `fan-videos/capture-replay.mjs` (playwright-core, headless Chromium) seeks a paused
+   show through every frame and reads the canvas.
+4. `fan-videos/post.py` adds title/end cards, the audio mix and the quote captions.
 
-The "What's Up" note file (`whats-up.json`) is intentionally not committed:
-this repo's rule is *nothing copyrighted in git*, and the file embeds the
-song's lyrics. It lives with the rendered videos outside the repo.
+The `?show=<id>` duet page (3D heads) replays the same shows; on a small VM its WebGL
+readback is too slow for full-song capture, which is why these use the 2D face — the
+view from the project's own demo posts.
